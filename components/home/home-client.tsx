@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import {
+  getErrorMessage,
+  logError,
+  getUserFriendlyError,
+} from "@/lib/error-utils";
 import { useSearchParams } from "next/navigation";
 import {
   PromptInput,
@@ -261,7 +266,7 @@ export function HomeClient() {
 
       await readStream(response);
     } catch (error) {
-      console.error("Error creating chat:", error);
+      logError("Error creating chat", error);
       setIsLoading(false);
       setChatHistory((prev) => {
         const newHistory = [...prev];
@@ -271,7 +276,7 @@ export function HomeClient() {
         ) {
           newHistory[newHistory.length - 1] = {
             type: "assistant",
-            content: "Sorry, an error occurred.",
+            content: getUserFriendlyError(error),
           };
         }
         return newHistory;
@@ -318,7 +323,7 @@ export function HomeClient() {
 
       await readStream(response);
     } catch (error) {
-      console.error("Error:", error);
+      logError("Error sending message", error);
       setIsLoading(false);
       setChatHistory((prev) => {
         const newHistory = [...prev];
@@ -328,7 +333,7 @@ export function HomeClient() {
         ) {
           newHistory[newHistory.length - 1] = {
             type: "assistant",
-            content: "Sorry, an error occurred.",
+            content: getUserFriendlyError(error),
           };
         }
         return newHistory;

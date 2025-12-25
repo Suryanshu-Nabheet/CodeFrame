@@ -285,33 +285,59 @@ export class FileSystemService extends EventEmitter {
 
   /**
    * Apply multiple file operations (from AI)
+   * Batched to prevent file tree flickering
    */
   async applyOperations(operations: FileOperation[]): Promise<void> {
-    for (const op of operations) {
-      try {
-        switch (op.type) {
-          case "create":
-          case "update":
-            await this.createFile(op.path, op.content || "");
-            break;
-          case "delete":
-            await this.delete(op.path);
-            break;
-          case "rename":
-            if (op.newPath) {
-              await this.rename(op.path, op.newPath);
-            }
-            break;
-        }
-      } catch (error) {
-        console.error(
-          `Failed to apply operation ${op.type} on ${op.path}:`,
-          error
-        );
-      }
-    }
+    // Suppress individual file events during batch
+    const originalEmit = this.emit.bind(this);
+    let suppressEvents = true;
 
-    this.emit("operations:applied", operations);
+    this.emit = function (event: string | symbol, ...args: any[]): boolean {
+      if (
+        suppressEvents &&
+        (event === "file:created" ||
+          event === "file:updated" ||
+          event === "file:deleted")
+      ) {
+        return false; // Suppress individual file events
+      }
+      return originalEmit(event, ...args);
+    };
+
+    try {
+      // Apply all operations
+      for (const op of operations) {
+        try {
+          switch (op.type) {
+            case "create":
+            case "update":
+              await this.createFile(op.path, op.content || "");
+              break;
+            case "delete":
+              await this.delete(op.path);
+              break;
+            case "rename":
+              if (op.newPath) {
+                await this.rename(op.path, op.newPath);
+              }
+              break;
+          }
+        } catch (error) {
+          console.error(
+            `Failed to apply operation ${op.type} on ${op.path}:`,
+            error
+          );
+        }
+      }
+    } finally {
+      // Restore original emit
+      suppressEvents = false;
+      this.emit = originalEmit;
+
+      // Emit single batch update event
+      this.emit("operations:applied", operations);
+      this.emit("tree:updated", this.fileTree);
+    }
   }
 
   // Helper methods
