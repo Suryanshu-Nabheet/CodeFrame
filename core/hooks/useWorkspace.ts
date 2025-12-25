@@ -6,36 +6,6 @@ import {
   FolderNode,
 } from "../services/file-system.service";
 import { aiService } from "../services/ai.service";
-import { NEXTJS_TEMPLATE } from "@/lib/templates/nextjs-starter";
-
-// Helper to add paths to template nodes (old format -> new format)
-function addPathsToTemplate(node: any, parentPath: string = ""): any {
-  if (node.type === "folder") {
-    const folderPath = parentPath;
-    return {
-      ...node,
-      path: folderPath,
-      children: node.children.map((child: any) => {
-        const childPath = parentPath
-          ? `${parentPath}/${child.name}`
-          : child.name;
-        return addPathsToTemplate(
-          child,
-          child.type === "folder" ? childPath : parentPath
-        );
-      }),
-    };
-  } else {
-    const filePath = parentPath ? `${parentPath}/${node.name}` : node.name;
-    return {
-      ...node,
-      path: filePath,
-    };
-  }
-}
-
-// Convert template on module load
-const TEMPLATE_WITH_PATHS = addPathsToTemplate(NEXTJS_TEMPLATE, "");
 
 export interface UseWorkspaceReturn {
   // State
@@ -81,7 +51,12 @@ export function useWorkspace(): UseWorkspaceReturn {
   const [isReady, setIsReady] = useState(false);
   const [isBooting, setIsBooting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [fileTree, setFileTree] = useState<FolderNode>(TEMPLATE_WITH_PATHS);
+  const [fileTree, setFileTree] = useState<FolderNode>({
+    name: "root",
+    type: "folder",
+    children: [],
+    path: "",
+  });
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -94,13 +69,13 @@ export function useWorkspace(): UseWorkspaceReturn {
         setIsBooting(true);
         setError(null);
 
-        // Boot WebContainer
+        // Boot WebContainer (empty, no template)
         await webContainerService.boot();
 
         if (!mounted) return;
 
-        // Initialize file system
-        await fileSystemService.initialize(TEMPLATE_WITH_PATHS);
+        // Initialize file system with empty root
+        await fileSystemService.initializeEmpty();
 
         if (!mounted) return;
 
@@ -137,28 +112,34 @@ export function useWorkspace(): UseWorkspaceReturn {
 
   // Listen for file system changes
   useEffect(() => {
-    const handleFileCreated = () => {
-      setFileTree(fileSystemService.getFileTree());
+    let timeoutId: NodeJS.Timeout;
+
+    const handleUpdate = () => {
+      // Clear existing timeout
+      if (timeoutId) clearTimeout(timeoutId);
+
+      // Set new timeout (debounce)
+      timeoutId = setTimeout(() => {
+        setFileTree(fileSystemService.getFileTree());
+      }, 100);
     };
 
-    const handleFileUpdated = () => {
-      setFileTree(fileSystemService.getFileTree());
-    };
+    fileSystemService.on("file:created", handleUpdate);
+    fileSystemService.on("file:updated", handleUpdate);
+    fileSystemService.on("deleted", handleUpdate);
+    fileSystemService.on("directory:created", handleUpdate);
+    fileSystemService.on("tree:updated", handleUpdate);
 
-    const handleDeleted = () => {
-      setFileTree(fileSystemService.getFileTree());
-    };
-
-    fileSystemService.on("file:created", handleFileCreated);
-    fileSystemService.on("file:updated", handleFileUpdated);
-    fileSystemService.on("deleted", handleDeleted);
-    fileSystemService.on("directory:created", handleFileCreated);
+    // Initial load
+    handleUpdate();
 
     return () => {
-      fileSystemService.off("file:created", handleFileCreated);
-      fileSystemService.off("file:updated", handleFileUpdated);
-      fileSystemService.off("deleted", handleDeleted);
-      fileSystemService.off("directory:created", handleFileCreated);
+      if (timeoutId) clearTimeout(timeoutId);
+      fileSystemService.off("file:created", handleUpdate);
+      fileSystemService.off("file:updated", handleUpdate);
+      fileSystemService.off("deleted", handleUpdate);
+      fileSystemService.off("directory:created", handleUpdate);
+      fileSystemService.off("tree:updated", handleUpdate);
     };
   }, []);
 

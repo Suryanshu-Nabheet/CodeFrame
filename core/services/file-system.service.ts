@@ -45,9 +45,12 @@ export class FileSystemService extends EventEmitter {
     children: [],
     path: "",
   };
+  private watchInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     super();
+    // Start watching for file system changes
+    this.startWatching();
   }
 
   static getInstance(): FileSystemService {
@@ -73,6 +76,25 @@ export class FileSystemService extends EventEmitter {
       }
     } catch (error) {
       this.emit("error", { operation: "initialize", error });
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize with empty file system - reads directly from WebContainer
+   */
+  async initializeEmpty(): Promise<void> {
+    try {
+      const container = webContainerService.getContainer();
+      if (!container) {
+        throw new Error("WebContainer not available");
+      }
+
+      // Read current file system from WebContainer
+      this.fileTree = await this.readDirectoryRecursive("", container);
+      this.emit("initialized", this.fileTree);
+    } catch (error) {
+      this.emit("error", { operation: "initializeEmpty", error });
       throw error;
     }
   }
@@ -436,6 +458,103 @@ export class FileSystemService extends EventEmitter {
       md: "markdown",
     };
     return languageMap[ext || ""] || "plaintext";
+  }
+
+  /**
+   * Start watching for file system changes
+   */
+  private startWatching(): void {
+    // Poll every 2 seconds to check for changes
+    this.watchInterval = setInterval(() => {
+      this.refreshFileTree().catch((error) => {
+        console.error("Error refreshing file tree:", error);
+      });
+    }, 2000);
+  }
+
+  /**
+   * Stop watching for file system changes
+   */
+  stopWatching(): void {
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
+      this.watchInterval = null;
+    }
+  }
+
+  /**
+   * Refresh file tree from WebContainer
+   */
+  private async refreshFileTree(): Promise<void> {
+    try {
+      const container = webContainerService.getContainer();
+      if (!container) return;
+
+      // Read the entire file system from WebContainer
+      const newTree = await this.readDirectoryRecursive("", container);
+
+      // Only update if there are actual changes
+      const oldTreeStr = JSON.stringify(this.fileTree);
+      const newTreeStr = JSON.stringify(newTree);
+
+      if (oldTreeStr !== newTreeStr) {
+        this.fileTree = newTree;
+        this.emit("tree:updated", this.fileTree);
+      }
+    } catch (error) {
+      // Silently fail - don't spam console
+    }
+  }
+
+  /**
+   * Read directory recursively from WebContainer
+   */
+  private async readDirectoryRecursive(
+    path: string,
+    container: WebContainer
+  ): Promise<FolderNode> {
+    const entries = await container.fs.readdir(path || ".", {
+      withFileTypes: true,
+    });
+    const children: FileSystemNode[] = [];
+
+    for (const entry of entries) {
+      const fullPath = path ? `${path}/${entry.name}` : entry.name;
+
+      // Skip node_modules and hidden files
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        const folder = await this.readDirectoryRecursive(fullPath, container);
+        children.push({
+          ...folder,
+          name: entry.name,
+          path: fullPath,
+        });
+      } else if (entry.isFile()) {
+        try {
+          const content = await container.fs.readFile(fullPath, "utf-8");
+          children.push({
+            name: entry.name,
+            type: "file",
+            content,
+            language: this.getLanguageFromExtension(entry.name),
+            path: fullPath,
+          });
+        } catch (error) {
+          // Skip files that can't be read
+        }
+      }
+    }
+
+    return {
+      name: path.split("/").pop() || "root",
+      type: "folder",
+      children,
+      path,
+    };
   }
 }
 
