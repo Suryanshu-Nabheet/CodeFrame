@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Tree, Folder, FileElement } from "@/components/ui/file-tree";
 import { CodeEditor } from "@/components/workspace/code-editor";
-import {
-  Play,
-  Terminal as TerminalIcon,
-  Eye,
-  Code2,
-  Download,
-} from "lucide-react";
+import { Terminal as TerminalIcon, Eye, Code2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import JSZip from "jszip";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -35,7 +29,6 @@ export function CodeWorkspace({
   const [selectedFileName, setSelectedFileName] =
     useState<string>("app/page.tsx");
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
-  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const terminalRef = useRef<any>(null);
   const xtermRef = useRef<any>(null);
   const shellProcessRef = useRef<any>(null);
@@ -60,7 +53,7 @@ export function CodeWorkspace({
 
   // Initialize terminal with WebContainer
   useEffect(() => {
-    if (!isTerminalOpen || !terminalRef.current || !isReady) return;
+    if (!terminalRef.current || !isReady) return;
 
     let mounted = true;
 
@@ -131,7 +124,7 @@ export function CodeWorkspace({
       xtermRef.current?.dispose();
       shellProcessRef.current?.kill?.();
     };
-  }, [isTerminalOpen, isReady]);
+  }, [isReady]);
 
   // Handle file selection
   const handleFileSelect = useCallback((fileId: string) => {
@@ -162,34 +155,6 @@ export function CodeWorkspace({
     a.click();
     URL.revokeObjectURL(url);
   }, [fileTree]);
-
-  // Handle run button - execute npm install and npm run dev
-  const handleRun = useCallback(async () => {
-    setActiveTab("preview");
-    setIsTerminalOpen(true);
-
-    if (!xtermRef.current || !shellProcessRef.current) return;
-
-    const term = xtermRef.current;
-    const input = shellProcessRef.current.input.getWriter();
-
-    try {
-      // Run npm install
-      term.writeln("\n\x1b[1;33m🚀 Installing dependencies...\x1b[0m");
-      await input.write("npm install\r");
-      input.releaseLock();
-
-      // Wait a bit then run dev server
-      setTimeout(async () => {
-        const input2 = shellProcessRef.current.input.getWriter();
-        term.writeln("\n\x1b[1;33m🚀 Starting dev server...\x1b[0m");
-        await input2.write("npm run dev\r");
-        input2.releaseLock();
-      }, 3000);
-    } catch (error) {
-      console.error("Failed to run commands:", error);
-    }
-  }, []);
 
   // Render file tree recursively
   const renderTree = useCallback(
@@ -304,14 +269,6 @@ export function CodeWorkspace({
             <Download className="w-4 h-4" />
             Export
           </button>
-
-          <button
-            onClick={handleRun}
-            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-md uppercase tracking-wide"
-          >
-            <Play className="w-3 h-3 fill-current" />
-            Run
-          </button>
         </div>
       </div>
 
@@ -360,24 +317,16 @@ export function CodeWorkspace({
                 />
               </div>
 
-              {/* Terminal */}
-              {isTerminalOpen && (
-                <div className="h-1/3 border-t border-white/10 bg-black flex flex-col">
-                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/5">
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <TerminalIcon className="w-3 h-3" />
-                      <span>Terminal</span>
-                    </div>
-                    <button
-                      onClick={() => setIsTerminalOpen(false)}
-                      className="text-gray-500 hover:text-white"
-                    >
-                      ×
-                    </button>
+              {/* Terminal - Always Visible */}
+              <div className="h-48 border-t border-white/10 bg-black flex flex-col">
+                <div className="flex items-center px-3 py-1.5 border-b border-white/5">
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <TerminalIcon className="w-3 h-3" />
+                    <span>Terminal</span>
                   </div>
-                  <div ref={terminalRef} className="flex-1 min-h-0 bg-black" />
                 </div>
-              )}
+                <div ref={terminalRef} className="flex-1 min-h-0 bg-black" />
+              </div>
             </div>
           </>
         ) : (
@@ -405,12 +354,6 @@ export function CodeWorkspace({
                 <div className="flex flex-col items-center gap-2">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400"></div>
                   <span>Waiting for server...</span>
-                  <button
-                    onClick={handleRun}
-                    className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
-                  >
-                    Start Server
-                  </button>
                 </div>
               </div>
             )}
