@@ -34,8 +34,15 @@ export function CodeWorkspace({
   const shellProcessRef = useRef<any>(null);
 
   // Use workspace hook
-  const { isReady, isBooting, fileTree, previewUrl, readFile, error } =
-    useWorkspace();
+  const {
+    isReady,
+    isBooting,
+    fileTree,
+    previewUrl,
+    readFile,
+    updateFile,
+    error,
+  } = useWorkspace();
 
   // Load selected file content
   useEffect(() => {
@@ -85,7 +92,9 @@ export function CodeWorkspace({
         xtermRef.current = term;
 
         // Register terminal with global service so AI can write to it
+        console.log("[CodeWorkspace] Registering terminal with service");
         terminalService.setTerminal(term);
+        console.log("[CodeWorkspace] Terminal registered successfully");
 
         // Start shell in WebContainer
         const container = webContainerService.getContainer();
@@ -317,7 +326,15 @@ export function CodeWorkspace({
                       ? "html"
                       : "typescript"
                   }
-                  onChange={(val) => val && setSelectedFileContent(val)}
+                  onChange={(val) => {
+                    if (val && selectedFileName) {
+                      setSelectedFileContent(val);
+                      // Auto-save to WebContainer (debounced)
+                      updateFile(selectedFileName, val).catch((err) => {
+                        console.error("Failed to save file:", err);
+                      });
+                    }
+                  }}
                 />
               </div>
 

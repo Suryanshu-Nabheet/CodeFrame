@@ -21,10 +21,19 @@ class TerminalService extends EventEmitter {
   }
 
   setTerminal(terminal: any) {
+    console.log(
+      "[TerminalService] Terminal registered, queue length:",
+      this.writeQueue.length
+    );
     this.terminalRef = terminal;
 
-    // Flush queued writes
+    // Flush queued writes immediately
     if (this.writeQueue.length > 0) {
+      console.log(
+        "[TerminalService] Flushing",
+        this.writeQueue.length,
+        "queued writes"
+      );
       this.writeQueue.forEach((data) => {
         if (this.terminalRef) {
           this.terminalRef.write(data);
@@ -38,6 +47,10 @@ class TerminalService extends EventEmitter {
     if (this.terminalRef) {
       this.terminalRef.write(data);
     } else {
+      console.log(
+        "[TerminalService] Terminal not ready, queuing write:",
+        data.substring(0, 50)
+      );
       // Queue for later if terminal not ready
       this.writeQueue.push(data);
     }
