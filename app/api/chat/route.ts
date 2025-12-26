@@ -176,7 +176,19 @@ export async function POST(request: NextRequest) {
         "X-Vercel-AI-Data-Stream": "v1",
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Explicitly type error as 'any' for 'code' property access
+    // Suppress expected connection reset errors (client disconnected)
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ECONNRESET"
+    ) {
+      console.log("Client disconnected (expected)");
+      return new Response(null, { status: 499 }); // Client Closed Request
+    }
+
     console.error("CodeFrame Chat Error:", error);
 
     // Handle validation errors
