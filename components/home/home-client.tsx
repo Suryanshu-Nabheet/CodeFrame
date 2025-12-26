@@ -197,11 +197,36 @@ export function HomeClient() {
 
         // Auto-run npm install and npm run dev
         console.log("🚀 Installing dependencies...");
-        await runCommand("npm", ["install"]);
-        console.log("✅ Dependencies installed");
+        const installProcess = await runCommand("npm", ["install"]);
+
+        // Wait for install to complete
+        installProcess.output.pipeTo(
+          new WritableStream({
+            write(data) {
+              console.log(data);
+            },
+          })
+        );
+
+        const installExitCode = await installProcess.exit;
+        if (installExitCode === 0) {
+          console.log("✅ Dependencies installed");
+        } else {
+          console.error("❌ npm install failed with code:", installExitCode);
+        }
 
         console.log("🚀 Starting dev server...");
-        await runCommand("npm", ["run", "dev"]);
+        const devProcess = await runCommand("npm", ["run", "dev"]);
+
+        // Pipe dev server output
+        devProcess.output.pipeTo(
+          new WritableStream({
+            write(data) {
+              console.log(data);
+            },
+          })
+        );
+
         console.log("✅ Dev server started");
       } catch (error) {
         console.error("❌ Failed to run commands:", error);

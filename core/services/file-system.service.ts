@@ -75,7 +75,7 @@ export class FileSystemService extends EventEmitter {
         this.emit("initialized", this.fileTree);
       }
     } catch (error) {
-      this.emit("error", { operation: "initialize", error });
+      // this.emit("error", { operation: "initialize", error });
       throw error;
     }
   }
@@ -94,7 +94,7 @@ export class FileSystemService extends EventEmitter {
       this.fileTree = await this.readDirectoryRecursive("", container);
       this.emit("initialized", this.fileTree);
     } catch (error) {
-      this.emit("error", { operation: "initializeEmpty", error });
+      // this.emit("error", { operation: "initializeEmpty", error });
       throw error;
     }
   }
@@ -138,7 +138,7 @@ export class FileSystemService extends EventEmitter {
 
       return file;
     } catch (error) {
-      this.emit("error", { operation: "createFile", path, error });
+      // this.emit("error", { operation: "createFile", path, error });
       throw error;
     }
   }
@@ -156,7 +156,7 @@ export class FileSystemService extends EventEmitter {
       const content = await container.fs.readFile(path, "utf-8");
       return content;
     } catch (error) {
-      this.emit("error", { operation: "readFile", path, error });
+      // Don't emit global error, just throw
       throw error;
     }
   }
@@ -179,7 +179,7 @@ export class FileSystemService extends EventEmitter {
         this.emit("file:updated", file);
       }
     } catch (error) {
-      this.emit("error", { operation: "updateFile", path, error });
+      // this.emit("error", { operation: "updateFile", path, error });
       throw error;
     }
   }
@@ -203,7 +203,7 @@ export class FileSystemService extends EventEmitter {
       this.removeNodeFromTree(path);
       this.emit("deleted", { path });
     } catch (error) {
-      this.emit("error", { operation: "delete", path, error });
+      // this.emit("error", { operation: "delete", path, error });
       throw error;
     }
   }
@@ -229,7 +229,7 @@ export class FileSystemService extends EventEmitter {
 
       this.emit("renamed", { oldPath, newPath });
     } catch (error) {
-      this.emit("error", { operation: "rename", oldPath, newPath, error });
+      // this.emit("error", { operation: "rename", oldPath, newPath, error });
       throw error;
     }
   }
@@ -256,7 +256,7 @@ export class FileSystemService extends EventEmitter {
 
       return folder;
     } catch (error) {
-      this.emit("error", { operation: "createDirectory", path, error });
+      // this.emit("error", { operation: "createDirectory", path, error });
       throw error;
     }
   }
