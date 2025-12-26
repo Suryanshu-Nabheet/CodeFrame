@@ -30,6 +30,7 @@ import { ChatMessages } from "@/components/chat/chat-messages";
 import { ChatInput } from "@/components/chat/chat-input";
 import { BottomToolbar } from "@/components/shared/bottom-toolbar";
 import { useWorkspace } from "@/core/hooks/useWorkspace";
+import { terminalService } from "@/core/services/terminal.service";
 
 // Component that uses useSearchParams
 function SearchParamsHandler({ onReset }: { onReset: () => void }) {
@@ -196,13 +197,15 @@ export function HomeClient() {
         await applyAICode(accumulatedContent);
 
         // Auto-run npm install and npm run dev
+        terminalService.writeln("\n\x1b[1;36m$ npm install\x1b[0m");
         console.log("🚀 Installing dependencies...");
         const installProcess = await runCommand("npm", ["install"]);
 
-        // Wait for install to complete
+        // Wait for install to complete and pipe to terminal
         installProcess.output.pipeTo(
           new WritableStream({
             write(data) {
+              terminalService.write(data);
               console.log(data);
             },
           })
@@ -210,25 +213,33 @@ export function HomeClient() {
 
         const installExitCode = await installProcess.exit;
         if (installExitCode === 0) {
+          terminalService.writeln("\x1b[1;32m✓ Dependencies installed\x1b[0m");
           console.log("✅ Dependencies installed");
         } else {
+          terminalService.writeln(
+            `\x1b[1;31m✗ npm install failed with code: ${installExitCode}\x1b[0m`
+          );
           console.error("❌ npm install failed with code:", installExitCode);
         }
 
+        terminalService.writeln("\n\x1b[1;36m$ npm run dev\x1b[0m");
         console.log("🚀 Starting dev server...");
         const devProcess = await runCommand("npm", ["run", "dev"]);
 
-        // Pipe dev server output
+        // Pipe dev server output to terminal
         devProcess.output.pipeTo(
           new WritableStream({
             write(data) {
+              terminalService.write(data);
               console.log(data);
             },
           })
         );
 
+        terminalService.writeln("\x1b[1;32m✓ Dev server started\x1b[0m");
         console.log("✅ Dev server started");
       } catch (error) {
+        terminalService.writeln(`\x1b[1;31m✗ Error: ${error}\x1b[0m`);
         console.error("❌ Failed to run commands:", error);
       }
 

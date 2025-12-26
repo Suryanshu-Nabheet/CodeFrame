@@ -12,6 +12,7 @@ import type {
   FileNode,
 } from "@/core/services/file-system.service";
 import { webContainerService } from "@/core/services/webcontainer.service";
+import { terminalService } from "@/core/services/terminal.service";
 import "xterm/css/xterm.css";
 
 interface CodeWorkspaceProps {
@@ -26,8 +27,7 @@ export function CodeWorkspace({
   generatedCode,
 }: CodeWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
-  const [selectedFileName, setSelectedFileName] =
-    useState<string>("app/page.tsx");
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [selectedFileContent, setSelectedFileContent] = useState<string>("");
   const terminalRef = useRef<any>(null);
   const xtermRef = useRef<any>(null);
@@ -84,6 +84,9 @@ export function CodeWorkspace({
 
         xtermRef.current = term;
 
+        // Register terminal with global service so AI can write to it
+        terminalService.setTerminal(term);
+
         // Start shell in WebContainer
         const container = webContainerService.getContainer();
         if (container) {
@@ -122,7 +125,8 @@ export function CodeWorkspace({
     return () => {
       mounted = false;
       xtermRef.current?.dispose();
-      shellProcessRef.current?.kill?.();
+      // Don't kill shell - let it persist
+      // shellProcessRef.current?.kill?.();
     };
   }, [isReady]);
 
@@ -305,11 +309,11 @@ export function CodeWorkspace({
                 <CodeEditor
                   code={selectedFileContent}
                   language={
-                    selectedFileName.endsWith("css")
+                    selectedFileName?.endsWith("css")
                       ? "css"
-                      : selectedFileName.endsWith("json")
+                      : selectedFileName?.endsWith("json")
                       ? "json"
-                      : selectedFileName.endsWith("html")
+                      : selectedFileName?.endsWith("html")
                       ? "html"
                       : "typescript"
                   }

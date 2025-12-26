@@ -1,11 +1,12 @@
-import React, { useRef, useEffect, useState, useMemo } from "react";
+import React, { useRef, useEffect } from "react";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   Conversation,
   ConversationContent,
 } from "@/components/ai-elements/conversation";
 import { Loader } from "@/components/ai-elements/loader";
-import { AILoadingState } from "@/components/ai-elements/ai-loading-state";
+import { TodoList } from "@/components/ai-elements/todo-list";
+import { useAIStatus } from "@/core/hooks/useAIStatus";
 
 interface ChatMessage {
   type: "user" | "assistant";
@@ -29,38 +30,15 @@ interface ChatMessagesProps {
   onStreamingStarted?: () => void;
 }
 
-// Extract planning steps from AI response
-function extractPlanningSteps(content: string): string[] {
-  const planMatch = content.match(
-    /```json filename="__plan__\.json"\s*\n([\s\S]*?)```/
-  );
-  if (planMatch) {
-    try {
-      const plan = JSON.parse(planMatch[1]);
-      return plan.steps || [];
-    } catch (e) {
-      return [];
-    }
-  }
-  return [];
-}
-
-// Check if response contains actual file code blocks (not just markdown code)
+// Check if response contains actual file code blocks
 function hasCodeBlocks(content: string): boolean {
-  // Only consider code blocks with filename attribute as actual code
   return /```\w+\s+filename=["']/.test(content);
 }
 
-// Remove code blocks and planning from display
+// Remove code blocks from display
 function cleanContent(content: string): string {
-  // Remove planning block
-  let cleaned = content.replace(
-    /```json filename="__plan__\.json"\s*\n[\s\S]*?```/g,
-    ""
-  );
-
   // Remove file code blocks
-  cleaned = cleaned.replace(
+  let cleaned = content.replace(
     /```\w+\s+filename=["'][^"']+["']\s*\n[\s\S]*?```/g,
     ""
   );
@@ -69,18 +47,6 @@ function cleanContent(content: string): string {
   cleaned = cleaned.replace(/```bash\s*\n[\s\S]*?```/g, "");
 
   return cleaned.trim();
-}
-
-// Calculate current step based on content progress
-function calculateCurrentStep(content: string, steps: string[]): number {
-  if (steps.length === 0) return 0;
-
-  // Count how many code blocks have been generated
-  const codeBlocks = (content.match(/```/g) || []).length / 2;
-
-  // Estimate progress based on code blocks
-  const estimatedProgress = Math.min(codeBlocks / 10, 1);
-  return Math.floor(estimatedProgress * steps.length);
 }
 
 export function ChatMessages({
@@ -92,6 +58,7 @@ export function ChatMessages({
   onStreamingStarted,
 }: ChatMessagesProps) {
   const streamingStartedRef = useRef(false);
+  const { todoItems } = useAIStatus();
 
   useEffect(() => {
     if (isLoading) {
@@ -119,17 +86,6 @@ export function ChatMessages({
                 ? msg.content
                 : JSON.stringify(msg.content);
 
-            // Extract planning steps for streaming messages
-            const steps =
-              msg.type === "assistant" && msg.isStreaming
-                ? extractPlanningSteps(contentStr)
-                : [];
-
-            const currentStep =
-              steps.length > 0 && msg.isStreaming
-                ? calculateCurrentStep(contentStr, steps)
-                : 0;
-
             const isCodeResponse = hasCodeBlocks(contentStr);
             const cleanedContent = cleanContent(contentStr);
 
@@ -140,41 +96,44 @@ export function ChatMessages({
                     {contentStr}
                   </div>
                 ) : msg.isStreaming ? (
-                  steps.length > 0 ? (
-                    // Complex request with planning
-                    <AILoadingState steps={steps} currentStep={currentStep} />
-                  ) : (
-                    // Simple question or no planning yet
+                  // Show TODO list while AI is working
+                  <div className="space-y-4">
                     <div className="flex items-center gap-2 text-gray-400">
                       <Loader size={16} />
-                      <span className="text-sm">Thinking...</span>
+                      <span className="text-sm">AI is working...</span>
                     </div>
-                  )
+                    {todoItems.length > 0 && (
+                      <TodoList
+                        items={todoItems}
+                        title="Building Your Project"
+                      />
+                    )}
+                  </div>
                 ) : // Completed response
                 isCodeResponse ? (
                   // Code was generated
-                  <div className="space-y-2">
-                    <div className="text-sm text-green-400">
+                  <div className="space-y-3">
+                    <div className="text-sm text-green-400 font-medium">
                       ✅ Project generated successfully!
                     </div>
-                    <div className="text-xs text-gray-500">
-                      Check the IDE on the right to see your code →
-                    </div>
+                    {todoItems.length > 0 && (
+                      <TodoList items={todoItems} title="Completed Tasks" />
+                    )}
+                    {cleanedContent && (
+                      <div className="prose dark:prose-invert max-w-none text-sm text-gray-300">
+                        <MessageContent>{cleanedContent}</MessageContent>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  // Simple answer (no code)
-                  <div className="prose prose-invert max-w-none whitespace-pre-wrap text-gray-200">
-                    {cleanedContent || contentStr}
+                  // Text response
+                  <div className="prose dark:prose-invert max-w-none">
+                    <MessageContent>{contentStr}</MessageContent>
                   </div>
                 )}
               </Message>
             );
           })}
-          {isLoading && !chatHistory[chatHistory.length - 1]?.isStreaming && (
-            <div className="flex justify-center py-4">
-              <Loader size={16} className="text-gray-500 dark:text-gray-400" />
-            </div>
-          )}
         </ConversationContent>
       </Conversation>
     </>
